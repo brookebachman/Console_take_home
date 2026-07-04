@@ -15,8 +15,10 @@ const connections = {
   slack: null, // { access_token, team, channel }
 };
 
-// In-memory request log
+// In-memory request log and tracking
 const digestLog = [];
+const startedAt = new Date().toISOString();
+let lastDigestSent = null;
 
 // ==========================================
 // Base URL - uses environment variable in production, localhost in dev
@@ -271,8 +273,9 @@ app.post("/webhook/digest", async (req, res) => {
       });
     }
 
+    lastDigestSent = new Date().toISOString();
     digestLog.push({
-      timestamp: new Date().toISOString(),
+      timestamp: lastDigestSent,
       repo,
       channel: `#${channel}`,
       issues_found: issues.length,
@@ -320,13 +323,6 @@ app.post("/webhook/digest", async (req, res) => {
         reset_at: err.response.headers?.["x-ratelimit-reset"],
       });
     }
-
-    digestLog.push({
-      timestamp: new Date().toISOString(),
-      repo: repo || "unknown",
-      error: err.response?.data || err.message,
-      success: false,
-    });
 
     digestLog.push({
       timestamp: new Date().toISOString(),
