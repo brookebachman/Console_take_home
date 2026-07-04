@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GitHub → Slack Issue Digest</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: system-ui, sans-serif; max-width: 700px; margin: 0 auto; padding: 40px 20px; color: #1a1a1a; }
+    h1 { font-size: 24px; margin-bottom: 8px; }
+    .subtitle { color: #666; margin-bottom: 32px; }
+    .card { border: 1px solid #e0e0e0; border-radius: 8px; padding: 20px; margin-bottom: 16px; }
+    .card h2 { font-size: 16px; margin-bottom: 12px; }
+    .status { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+    .dot { width: 10px; height: 10px; border-radius: 50%; }
+    .dot.connected { background: #22c55e; }
+    .dot.disconnected { background: #ef4444; }
+    .btn { padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-size: 14px; font-weight: 500; }
+    .btn-connect { background: #111; color: #fff; }
+    .btn-connect:hover { background: #333; }
+    .btn-disconnect { background: #fee; color: #c00; border: 1px solid #fcc; }
+    .btn-disconnect:hover { background: #fdd; }
+    .btn-send { background: #0D7C5F; color: #fff; width: 100%; padding: 12px; font-size: 16px; }
+    .btn-send:hover { background: #0a6b50; }
+    .btn-send:disabled { background: #ccc; cursor: not-allowed; }
+    label { display: block; font-size: 14px; font-weight: 500; margin-bottom: 4px; }
+    input { width: 100%; padding: 8px 12px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; margin-bottom: 12px; }
+    .result { margin-top: 16px; padding: 16px; border-radius: 8px; font-size: 13px; font-family: monospace; white-space: pre-wrap; max-height: 400px; overflow-y: auto; }
+    .result.success { background: #f0fdf4; border: 1px solid #bbf7d0; }
+    .result.error { background: #fef2f2; border: 1px solid #fecaca; color: #c00; }
+    .info { font-size: 13px; color: #666; margin-bottom: 16px; }
+  </style>
+</head>
+<body>
+  <h1>GitHub → Slack Issue Digest</h1>
+  <p class="subtitle">Connect GitHub and Slack, then trigger a digest of open issues posted to a Slack channel.</p>
+
+  <!-- GitHub Connection -->
+  <div class="card">
+    <h2>GitHub</h2>
+    <div class="status">
+      <div class="dot" id="github-dot"></div>
+      <span id="github-status">Checking...</span>
+    </div>
+    <div id="github-actions"></div>
+  </div>
+
+  <!-- Slack Connection -->
+  <div class="card">
+    <h2>Slack</h2>
+    <div class="status">
+      <div class="dot" id="slack-dot"></div>
+      <span id="slack-status">Checking...</span>
+    </div>
+    <div id="slack-actions"></div>
+  </div>
+
+  <!-- Webhook Trigger -->
+  <div class="card">
+    <h2>Trigger Issue Digest</h2>
+    <p class="info">Pull open issues from a GitHub repo and post a digest to a Slack channel.</p>
+    <label for="repo">Repository (owner/repo)</label>
+    <input type="text" id="repo" placeholder="e.g., facebook/react" />
+    <label for="channel">Slack Channel</label>
+    <input type="text" id="channel" placeholder="e.g., new-channel" value="new-channel" />
+    <label for="labels">Labels (optional, comma-separated)</label>
+    <input type="text" id="labels" placeholder="e.g., bug, enhancement" />
+    <button class="btn btn-send" id="send-btn" disabled onclick="triggerDigest()">
+      Connect both integrations first
+    </button>
+    <div id="result"></div>
+  </div>
+
+  <script>
+    async function checkStatus() {
+      const res = await fetch("/api/status");
+      const data = await res.json();
+
+      // GitHub
+      const ghDot = document.getElementById("github-dot");
+      const ghStatus = document.getElementById("github-status");
+      const ghActions = document.getElementById("github-actions");
+      if (data.github.connected) {
+        ghDot.className = "dot connected";
+        ghStatus.textContent = `Connected as ${data.github.username}`;
+        ghActions.innerHTML = '<button class="btn btn-disconnect" onclick="disconnect(\'github\')">Disconnect</button>';
+      } else {
+        ghDot.className = "dot disconnected";
+        ghStatus.textContent = "Not connected";
+        ghActions.innerHTML = '<a href="/auth/github"><button class="btn btn-connect">Connect GitHub</button></a>';
+      }
+
+      // Slack
+      const slDot = document.getElementById("slack-dot");
+      const slStatus = document.getElementById("slack-status");
+      const slActions = document.getElementById("slack-actions");
+      if (data.slack.connected) {
+        slDot.className = "dot connected";
+        slStatus.textContent = `Connected to ${data.slack.team}`;
+        slActions.innerHTML = '<button class="btn btn-disconnect" onclick="disconnect(\'slack\')">Disconnect</button>';
+      } else {
+        slDot.className = "dot disconnected";
+        slStatus.textContent = "Not connected";
+        slActions.innerHTML = '<a href="/auth/slack"><button class="btn btn-connect">Connect Slack</button></a>';
+      }
+
+      // Enable/disable send button
+      const sendBtn = document.getElementById("send-btn");
+      if (data.github.connected && data.slack.connected) {
+        sendBtn.disabled = false;
+        sendBtn.textContent = "Send Issue Digest to Slack";
+      } else {
+        sendBtn.disabled = true;
+        sendBtn.textContent = "Connect both integrations first";
+      }
+    }
+
+    async function disconnect(service) {
+      await fetch(`/api/disconnect/${service}`, { method: "POST" });
+      checkStatus();
+    }
+
+    async function triggerDigest() {
+      const repo = document.getElementById("repo").value;
+      const channel = document.getElementById("channel").value;
+      const labels = document.getElementById("labels").value;
+      const resultDiv = document.getElementById("result");
+      const sendBtn = document.getElementById("send-btn");
+
+      if (!repo) {
+        resultDiv.className = "result error";
+        resultDiv.textContent = "Please enter a repository (e.g., facebook/react)";
+        return;
+      }
+
+      sendBtn.disabled = true;
+      sendBtn.textContent = "Sending...";
+
+      try {
+        const res = await fetch("/webhook/digest", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ repo, channel, labels }),
+        });
+
+        const data = await res.json();
+
+        if (res.ok) {
+          resultDiv.className = "result success";
+          resultDiv.textContent = JSON.stringify(data, null, 2);
+        } else {
+          resultDiv.className = "result error";
+          resultDiv.textContent = JSON.stringify(data, null, 2);
+        }
+      } catch (err) {
+        resultDiv.className = "result error";
+        resultDiv.textContent = "Request failed: " + err.message;
+      }
+
+      sendBtn.disabled = false;
+      sendBtn.textContent = "Send Issue Digest to Slack";
+    }
+
+    // Check status on page load
+    checkStatus();
+  </script>
+</body>
+</html>
