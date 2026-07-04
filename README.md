@@ -46,7 +46,7 @@ Open `http://localhost:3000` to connect integrations and trigger digests.
 
 ## Deployed Version
 
-[Deployed URL here]
+https://console-take-home.onrender.com
 
 ## API Reference
 
