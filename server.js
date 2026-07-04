@@ -41,7 +41,7 @@ app.get("/auth/github/callback", async (req, res) => {
         client_secret: process.env.GITHUB_OAUTH_SECRET,
         code,
       },
-      { headers: { Accept: "application/json" } }
+      { headers: { Accept: "application/json" } },
     );
 
     const accessToken = tokenRes.data.access_token;
@@ -92,7 +92,7 @@ app.get("/auth/slack/callback", async (req, res) => {
           code,
           redirect_uri: "http://localhost:3000/auth/slack/callback",
         },
-      }
+      },
     );
 
     if (!tokenRes.data.ok) {
@@ -149,10 +149,14 @@ app.post("/api/disconnect/slack", (req, res) => {
 app.post("/webhook/digest", async (req, res) => {
   // Validate connections
   if (!connections.github) {
-    return res.status(400).json({ error: "GitHub is not connected. Visit / to connect." });
+    return res
+      .status(400)
+      .json({ error: "GitHub is not connected. Visit / to connect." });
   }
   if (!connections.slack) {
-    return res.status(400).json({ error: "Slack is not connected. Visit / to connect." });
+    return res
+      .status(400)
+      .json({ error: "Slack is not connected. Visit / to connect." });
   }
 
   // Get params from request body or query
@@ -180,7 +184,9 @@ app.post("/webhook/digest", async (req, res) => {
     // Step 1: Fetch open issues from GitHub
     const [owner, repoName] = repo.split("/");
     if (!owner || !repoName) {
-      return res.status(400).json({ error: "repo must be in format 'owner/repo'" });
+      return res
+        .status(400)
+        .json({ error: "repo must be in format 'owner/repo'" });
     }
 
     const githubParams = { state: "open", per_page: 10 };
@@ -192,7 +198,7 @@ app.post("/webhook/digest", async (req, res) => {
       {
         headers: { Authorization: `Bearer ${connections.github.access_token}` },
         params: githubParams,
-      }
+      },
     );
 
     const issues = issuesRes.data;
@@ -220,11 +226,11 @@ app.post("/webhook/digest", async (req, res) => {
       {
         headers: { Authorization: `Bearer ${connections.slack.access_token}` },
         params: { types: "public_channel", limit: 200 },
-      }
+      },
     );
 
     const slackChannel = channelsRes.data.channels?.find(
-      (c) => c.name === channel
+      (c) => c.name === channel,
     );
 
     if (!slackChannel) {
@@ -244,16 +250,17 @@ app.post("/webhook/digest", async (req, res) => {
       },
       {
         headers: { Authorization: `Bearer ${connections.slack.access_token}` },
-      }
+      },
     );
 
     if (!postRes.data.ok) {
       return res.status(500).json({
         error: "Failed to post to Slack",
         slack_error: postRes.data.error,
-        hint: postRes.data.error === "not_in_channel"
-          ? `Invite the bot to #${channel} first by typing /invite @Console_Takehome in the channel`
-          : undefined,
+        hint:
+          postRes.data.error === "not_in_channel"
+            ? `Invite the bot to #${channel} first by typing /invite @Console_Takehome in the channel`
+            : undefined,
       });
     }
 
@@ -296,6 +303,26 @@ app.post("/webhook/digest", async (req, res) => {
       details: err.response?.data || err.message,
     });
   }
+});
+
+// ==========================================
+// Health check
+// ==========================================
+
+const startedAt = new Date().toISOString();
+let lastDigestSent = null;
+
+app.get("/health", (req, res) => {
+  res.json({
+    status: "ok",
+    uptime: process.uptime(),
+    started_at: startedAt,
+    last_digest_sent: lastDigestSent,
+    connections: {
+      github: connections.github ? "connected" : "disconnected",
+      slack: connections.slack ? "connected" : "disconnected",
+    },
+  });
 });
 
 // ==========================================
