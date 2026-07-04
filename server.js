@@ -29,7 +29,7 @@ const BASE_URL = process.env.BASE_URL || "http://localhost:3000";
 app.get("/auth/github", (req, res) => {
   const params = new URLSearchParams({
     client_id: process.env.GITHUB_OAUTH_CLIENT_ID,
-    redirect_uri: "${BASE_URL}/auth/github/callback",
+    redirect_uri: `${BASE_URL}/auth/github/callback`,
     scope: "repo",
   });
   res.redirect(`https://github.com/login/oauth/authorize?${params}`);
@@ -78,7 +78,7 @@ app.get("/auth/github/callback", async (req, res) => {
 app.get("/auth/slack", (req, res) => {
   const params = new URLSearchParams({
     client_id: process.env.SLACK_CLIENT_ID,
-    redirect_uri: "${BASE_URL}/auth/slack/callback",
+    redirect_uri: `${BASE_URL}/auth/slack/callback`,
     scope: "chat:write,channels:read",
   });
   res.redirect(`https://slack.com/oauth/v2/authorize?${params}`);
@@ -97,7 +97,7 @@ app.get("/auth/slack/callback", async (req, res) => {
           client_id: process.env.SLACK_CLIENT_ID,
           client_secret: process.env.SLACK_CLIENT_SECRET,
           code,
-          redirect_uri: "${BASE_URL}/auth/slack/callback",
+          redirect_uri: `${BASE_URL}/auth/slack/callback`,
         },
       },
     );
