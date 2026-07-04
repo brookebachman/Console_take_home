@@ -264,6 +264,9 @@ app.post("/webhook/digest", async (req, res) => {
       });
     }
 
+    const rateLimitRemaining = issuesRes.headers?.["x-ratelimit-remaining"];
+    const rateLimitReset = issuesRes.headers?.["x-ratelimit-reset"];
+
     res.json({
       success: true,
       summary: {
@@ -271,7 +274,7 @@ app.post("/webhook/digest", async (req, res) => {
         issues_found: issues.length,
         channel: `#${channel}`,
         message_posted: true,
-        timestamp: lastDigestSent,
+        timestamp: new Date().toISOString(),
       },
       issues: issues.map((i) => ({
         number: i.number,
@@ -280,6 +283,12 @@ app.post("/webhook/digest", async (req, res) => {
         labels: i.labels.map((l) => l.name),
         created_at: i.created_at,
       })),
+      github_rate_limit: {
+        remaining: rateLimitRemaining,
+        resets_at: rateLimitReset
+          ? new Date(parseInt(rateLimitReset) * 1000).toISOString()
+          : null,
+      },
     });
   } catch (err) {
     // Handle specific GitHub errors
