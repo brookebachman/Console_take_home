@@ -15,6 +15,9 @@ const connections = {
   slack: null, // { access_token, team, channel }
 };
 
+// In-memory request log
+const digestLog = [];
+
 // ==========================================
 // GitHub OAuth
 // ==========================================
@@ -264,6 +267,15 @@ app.post("/webhook/digest", async (req, res) => {
       });
     }
 
+    digestLog.push({
+      timestamp: new Date().toISOString(),
+      repo,
+      channel: `#${channel}`,
+      issues_found: issues.length,
+      labels: labels || "none",
+      success: true,
+    });
+
     const rateLimitRemaining = issuesRes.headers?.["x-ratelimit-remaining"];
     const rateLimitReset = issuesRes.headers?.["x-ratelimit-reset"];
 
@@ -312,6 +324,13 @@ app.post("/webhook/digest", async (req, res) => {
       success: false,
     });
 
+    digestLog.push({
+      timestamp: new Date().toISOString(),
+      repo: repo || "unknown",
+      error: err.response?.data || err.message,
+      success: false,
+    });
+
     console.error("Webhook error:", err.response?.data || err.message);
     res.status(500).json({
       error: "Something went wrong",
@@ -335,6 +354,19 @@ app.get("/health", (req, res) => {
       github: connections.github ? "connected" : "disconnected",
       slack: connections.slack ? "connected" : "disconnected",
     },
+  });
+});
+
+// ==========================================
+// Request logs
+// ==========================================
+
+app.get("/api/logs", (req, res) => {
+  res.json({
+    total_digests: digestLog.length,
+    successful: digestLog.filter((l) => l.success).length,
+    failed: digestLog.filter((l) => !l.success).length,
+    logs: digestLog.slice().reverse(),
   });
 });
 
