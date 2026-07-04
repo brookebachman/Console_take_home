@@ -264,7 +264,6 @@ app.post("/webhook/digest", async (req, res) => {
       });
     }
 
-    // Step 5: Return summary
     res.json({
       success: true,
       summary: {
@@ -272,7 +271,7 @@ app.post("/webhook/digest", async (req, res) => {
         issues_found: issues.length,
         channel: `#${channel}`,
         message_posted: true,
-        timestamp: new Date().toISOString(),
+        timestamp: lastDigestSent,
       },
       issues: issues.map((i) => ({
         number: i.number,
@@ -297,6 +296,13 @@ app.post("/webhook/digest", async (req, res) => {
       });
     }
 
+    digestLog.push({
+      timestamp: new Date().toISOString(),
+      repo: repo || "unknown",
+      error: err.response?.data || err.message,
+      success: false,
+    });
+
     console.error("Webhook error:", err.response?.data || err.message);
     res.status(500).json({
       error: "Something went wrong",
@@ -309,15 +315,13 @@ app.post("/webhook/digest", async (req, res) => {
 // Health check
 // ==========================================
 
-const startedAt = new Date().toISOString();
-let lastDigestSent = null;
-
 app.get("/health", (req, res) => {
   res.json({
     status: "ok",
     uptime: process.uptime(),
     started_at: startedAt,
     last_digest_sent: lastDigestSent,
+
     connections: {
       github: connections.github ? "connected" : "disconnected",
       slack: connections.slack ? "connected" : "disconnected",
